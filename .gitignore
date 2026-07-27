@@ -51,3 +51,6 @@ yarn-error.log*
 /prisma/*.sqlite3-journal
 /prisma/*.db
 /prisma/*.db-journal
+
+# Per-deployment static assets, placed on each host (coin-specific favicon/branding), not tracked
+/public/

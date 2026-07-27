@@ -316,6 +316,91 @@ function resetCycleTiming(): void {
   cycleTiming.snapshotWriteMs = 0;
 }
 
+/**
+ * Build the pool_worker_snapshot rows for one user, deduped by worker_name. ckpool keys workers by
+ * their full name, but parseWorkerName maps distinct names to the same key (a bare address and a
+ * trailing-dot name both parse to the empty string). A single ON CONFLICT batch can't touch the same
+ * conflict key twice, so same-key workers are merged here the way combineUserData does — sum
+ * rates/shares, max the bests/started, take the device from the most-recently-active one — so
+ * collapsing them loses nothing.
+ */
+export function buildUserWorkerRows(
+  workers: Record<string, unknown>[],
+  pool: string,
+  address: string,
+  now: Date
+): Row[] {
+  const byName = new Map<
+    string,
+    {
+      pool: string;
+      address: string;
+      worker_name: string;
+      hashrate1m: number;
+      hashrate5m: number;
+      hashrate1hr: number;
+      hashrate1d: number;
+      hashrate7d: number;
+      last_share: number;
+      started: number;
+      shares: number;
+      best_share: number;
+      best_ever: number;
+      device: string;
+      device_raw: string | null;
+      fetched_at: Date;
+    }
+  >();
+  for (const w of workers) {
+    const rawUa = String(w.useragent ?? '').trim();
+    const worker_name = parseWorkerName(String(w.workername ?? ''), address);
+    const lastShare = intOf(w.lastshare);
+    const cur = byName.get(worker_name);
+    if (!cur) {
+      byName.set(worker_name, {
+        pool,
+        address,
+        worker_name,
+        hashrate1m: hr(w.hashrate1m),
+        hashrate5m: hr(w.hashrate5m),
+        hashrate1hr: hr(w.hashrate1hr),
+        hashrate1d: hr(w.hashrate1d),
+        hashrate7d: hr(w.hashrate7d),
+        last_share: lastShare,
+        started: intOf(w.started),
+        shares: safeParseFloat(w.shares as never, 0),
+        best_share: safeParseFloat(w.bestshare as never, 0),
+        best_ever: safeParseFloat(w.bestever as never, 0),
+        device: normalizeUserAgent(rawUa),
+        device_raw: rawUa || null,
+        fetched_at: now,
+      });
+      continue;
+    }
+    cur.hashrate1m += hr(w.hashrate1m);
+    cur.hashrate5m += hr(w.hashrate5m);
+    cur.hashrate1hr += hr(w.hashrate1hr);
+    cur.hashrate1d += hr(w.hashrate1d);
+    cur.hashrate7d += hr(w.hashrate7d);
+    cur.shares += safeParseFloat(w.shares as never, 0);
+    cur.best_share = Math.max(
+      cur.best_share,
+      safeParseFloat(w.bestshare as never, 0)
+    );
+    cur.best_ever = Math.max(
+      cur.best_ever,
+      safeParseFloat(w.bestever as never, 0)
+    );
+    cur.started = Math.max(cur.started, intOf(w.started));
+    if (lastShare > cur.last_share) {
+      cur.last_share = lastShare;
+      cur.device = normalizeUserAgent(rawUa);
+      cur.device_raw = rawUa || null;
+    }
+  }
+  return Array.from(byName.values());
+}
+
 export async function capturePool(
   db: { query: (sql: string, params?: unknown[]) => Promise<unknown> },
   pool: string,
@@ -482,26 +567,8 @@ export async function capturePool(
       worker_count: intOf(u.workers ?? u.worker?.length ?? 0),
       fetched_at: now,
     });
-    for (const w of u.worker ?? []) {
-      const rawUa = String(w.useragent ?? '').trim();
-      workerRows.push({
-        pool,
-        address,
-        worker_name: parseWorkerName(String(w.workername ?? ''), address),
-        hashrate1m: hr(w.hashrate1m),
-        hashrate5m: hr(w.hashrate5m),
-        hashrate1hr: hr(w.hashrate1hr),
-        hashrate1d: hr(w.hashrate1d),
-        hashrate7d: hr(w.hashrate7d),
-        last_share: intOf(w.lastshare),
-        started: intOf(w.started),
-        shares: safeParseFloat(w.shares as never, 0),
-        best_share: safeParseFloat(w.bestshare as never, 0),
-        best_ever: safeParseFloat(w.bestever as never, 0),
-        device: normalizeUserAgent(rawUa),
-        device_raw: rawUa || null,
-        fetched_at: now,
-      });
+    for (const row of buildUserWorkerRows(u.worker ?? [], pool, address, now)) {
+      workerRows.push(row);
     }
   });
 
