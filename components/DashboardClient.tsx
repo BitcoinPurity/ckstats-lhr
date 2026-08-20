@@ -8,6 +8,7 @@ import PoolStatsChart from './PoolStatsChart';
 import PoolStatsDisplay from './PoolStatsDisplay';
 import { useRefresh } from '../lib/contexts/RefreshContext';
 import { useDashboardData } from '../lib/hooks/useDashboardData';
+import type { PurityNetwork } from '../lib/purityNetwork';
 import { DashboardPayload } from '../lib/types/dashboard';
 import {
   formatConciseTimeAgo,
@@ -42,8 +43,10 @@ function KvRow({
 
 export default function DashboardClient({
   initialData,
+  purityNetwork,
 }: {
   initialData: DashboardPayload;
+  purityNetwork: PurityNetwork;
 }) {
   const { data, isLoading, error, refetch } = useDashboardData(initialData);
   const { registerRefresh, unregisterRefresh } = useRefresh();
@@ -86,6 +89,7 @@ export default function DashboardClient({
         historicalStats={historicalStats}
         generatedAt={data.generatedAt ? new Date(data.generatedAt) : undefined}
         service={data.service}
+        purityNetwork={purityNetwork}
       />
       {isVisible('dashboard.chart') &&
         (historicalStats && historicalStats.length > 0 ? (

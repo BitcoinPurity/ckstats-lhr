@@ -1,2 +1,4 @@
 onlyBuiltDependencies:
+  - better-sqlite3
   - es5-ext
+  - sqlite3

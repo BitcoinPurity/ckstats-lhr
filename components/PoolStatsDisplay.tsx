@@ -5,6 +5,7 @@ import Link from 'next/link';
 import StatInfo from './StatInfo';
 import { PoolStats } from '../lib/entities/PoolStats';
 import type { ServiceSnapshot } from '../lib/poolHealth';
+import type { PurityNetwork } from '../lib/purityNetwork';
 import {
   formatNumber,
   formatHashrate,
@@ -26,6 +27,7 @@ interface PoolStatsDisplayProps {
   historicalStats: PoolStats[];
   generatedAt?: Date;
   service?: ServiceSnapshot;
+  purityNetwork: PurityNetwork;
 }
 
 // ckstats-meta service health → label + theme text color (rendered as plain stat text, not a pill).
@@ -41,6 +43,7 @@ export default function PoolStatsDisplay({
   historicalStats,
   generatedAt,
   service,
+  purityNetwork,
 }: PoolStatsDisplayProps) {
   // Pool magnitudes at a single decimal place (Best/Net Diff, Work, SPS, share counts) for a
   // consistent look. Full ISO unit range (k…Z) so large difficulties read as "4.9 P", not "4896 T".
@@ -462,18 +465,17 @@ export default function PoolStatsDisplay({
               <div className="stats stats-vertical lg:stats-horizontal shadow-lg my-2">
                 {isVisible('dashboard.difficulty.netdiff') && (
                   <div className="stat">
-                    <div className="stat-title">Net Diff</div>
+                    <div className="stat-title">Next Diff</div>
                     <div className="stat-value text-2xl">
-                      {(() => {
-                        const netdiff =
-                          stats.netdiff != null ? Number(stats.netdiff) : null;
-                        return netdiff != null && netdiff > 0
-                          ? fmt1(netdiff)
-                          : 'N/A';
-                      })()}
+                      {purityNetwork.nextDifficulty > 0
+                        ? fmt1(purityNetwork.nextDifficulty)
+                        : 'N/A'}
                     </div>
-                    {/* Spacer to align with Best Diff's (Proximity) subtext. */}
-                    <div className="stat-desc">&nbsp;</div>
+                    <div className="stat-desc">
+                      Block {purityNetwork.nextHeight.toLocaleString('en-US')}
+                      <br />
+                      bits {purityNetwork.nextBits}
+                    </div>
                   </div>
                 )}
                 {isVisible('dashboard.difficulty.bestdiff') && (
@@ -486,7 +488,7 @@ export default function PoolStatsDisplay({
                       (() => {
                         const percent = calculateProximityPercent(
                           Number(stats.bestshare),
-                          stats.netdiff != null ? Number(stats.netdiff) : null,
+                          purityNetwork.nextDifficulty,
                           true
                         );
                         return (
@@ -502,45 +504,49 @@ export default function PoolStatsDisplay({
                 )}
                 {isVisible('dashboard.difficulty.avgtime') &&
                   (() => {
-                    const networkDifficulty =
-                      stats.netdiff != null
-                        ? stats.netdiff
-                        : stats.diff != null &&
-                            stats.accepted != null &&
-                            Number(stats.diff) > 0
-                          ? (Number(stats.accepted) /
-                              (Number(stats.diff) * 100)) *
-                            10000
-                          : null;
-                    const avgTimeStr = (() => {
-                      if (
-                        stats.hashrate6hr == null ||
-                        networkDifficulty == null
-                      )
-                        return 'N/A';
-                      const seconds = calculateAverageTimeToBlock(
-                        stats.hashrate6hr,
-                        networkDifficulty
-                      );
-                      return formatDurationCapped(seconds);
-                    })();
+                    const poolHashrate5m =
+                      stats.hashrate5m != null ? Number(stats.hashrate5m) : 0;
+
+                    const avgTimeStr =
+                      poolHashrate5m > 0 && purityNetwork.nextDifficulty > 0
+                        ? formatDurationCapped(
+                            calculateAverageTimeToBlock(
+                              poolHashrate5m,
+                              purityNetwork.nextDifficulty
+                            )
+                          )
+                        : 'N/A';
+
                     return (
-                      <div className="stat">
-                        <div className="stat-title">Avg Time to Block</div>
-                        <div className="stat-value text-2xl">{avgTimeStr}</div>
-                        <div className="stat-desc">
-                          {(process.env.NEXT_PUBLIC_COIN ?? 'BTC') === 'BTC' ? (
-                            <Link
-                              href={`https://mempool.space/mining/pool/${process.env.NEXT_PUBLIC_MEMPOOL_LINK_TAG}`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="link text-primary"
-                            >
-                              Found Blocks
-                            </Link>
-                          ) : (
-                            <>&nbsp;</>
-                          )}
+                      <div>
+                        <div className="stat">
+                          <div className="stat-title">
+                            Expected Time to Block
+                          </div>
+                          <div className="stat-value text-2xl">
+                            {avgTimeStr}
+                          </div>
+                          <div className="stat-desc">
+                            5m pool hashrate · Last block{' '}
+                            {formatDuration(purityNetwork.blockAgeSeconds)} ago
+                          </div>
+                        </div>
+                        <div className="stat">
+                          <div className="stat-title">
+                            Est. Network Hashrate
+                          </div>
+                          <div className="stat-value text-2xl">
+                            {purityNetwork.networkHashrate > 0
+                              ? formatHashrate(
+                                  purityNetwork.networkHashrate,
+                                  false,
+                                  1
+                                )
+                              : 'N/A'}
+                          </div>
+                          <div className="stat-desc">
+                            RPC estimate from recent blocks
+                          </div>
                         </div>
                       </div>
                     );

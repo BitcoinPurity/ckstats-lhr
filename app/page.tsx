@@ -9,7 +9,10 @@ import {
   getTopUserLoyalty,
 } from '../lib/api';
 import { getServiceSnapshot } from '../lib/poolHealth';
+import { getPurityNetwork } from '../lib/purityNetwork';
 import { serializeData } from '../utils/helpers';
+
+export const dynamic = 'force-dynamic';
 
 export const revalidate = 60;
 
@@ -61,10 +64,14 @@ export default async function Home() {
         historicalPoints: historicalStats?.length ?? 0,
       },
     };
+    const purityNetwork = await getPurityNetwork();
 
     return (
       <main className="container mx-auto p-4">
-        <DashboardClient initialData={initialPayload} />
+        <DashboardClient
+          initialData={initialPayload}
+          purityNetwork={purityNetwork}
+        />
       </main>
     );
   } catch (error) {
