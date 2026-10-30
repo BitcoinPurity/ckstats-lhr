@@ -89,7 +89,8 @@ const VISIBILITY_FLAGS = {
   'HIDE_POOL-SERVICE_LAST-UPDATE': 'dashboard.pool_service.lastupdate',
   HIDE_CONNECTIONS: 'dashboard.connections',
   HIDE_CONNECTIONS_USERS: 'dashboard.connections.users',
-  HIDE_CONNECTIONS_USERS_IDLE: 'dashboard.connections.users.subtext',
+  // Retain the existing flag name when moving Idle to worker connections.
+  HIDE_CONNECTIONS_USERS_IDLE: 'dashboard.connections.workers.idle',
   HIDE_CONNECTIONS_WORKERS: 'dashboard.connections.workers',
   HIDE_CONNECTIONS_WORKERS_DISCONNECTED:
     'dashboard.connections.workers.subtext',

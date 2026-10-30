@@ -374,12 +374,13 @@ export default function PoolStatsDisplay({
                       pool.
                     </li>
                     <li>
-                      <strong>Idle</strong> — users connected but no longer
-                      submitting shares.
-                    </li>
-                    <li>
                       <strong>Workers</strong> — total workers connected to the
                       pool.
+                    </li>
+                    <li>
+                      <strong>Idle</strong> — authorised worker connections with
+                      no counted share for over 60 seconds at the last pool
+                      update.
                     </li>
                     <li>
                       <strong>Disconnected</strong> — total worker disconnects
@@ -395,13 +396,7 @@ export default function PoolStatsDisplay({
                     <div className="stat-value text-2xl">
                       {formatNumber(stats.users)}
                     </div>
-                    <div className="stat-desc">
-                      {isVisible('dashboard.connections.users.subtext') ? (
-                        <>Idle: {formatNumber(stats.idle)}</>
-                      ) : (
-                        <>&nbsp;</>
-                      )}
-                    </div>
+                    <div className="stat-desc">&nbsp;</div>
                   </div>
                 )}
                 {isVisible('dashboard.connections.workers') && (
@@ -411,8 +406,13 @@ export default function PoolStatsDisplay({
                       {formatNumber(stats.workers)}
                     </div>
                     <div className="stat-desc">
+                      {isVisible('dashboard.connections.workers.idle') && (
+                        <div>Idle: {formatNumber(stats.idle)}</div>
+                      )}
                       {isVisible('dashboard.connections.workers.subtext') ? (
-                        <>Disconnected: {formatNumber(stats.disconnected)}</>
+                        <div>
+                          Disconnected: {formatNumber(stats.disconnected)}
+                        </div>
                       ) : (
                         <>&nbsp;</>
                       )}
