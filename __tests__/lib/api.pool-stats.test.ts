@@ -1,4 +1,9 @@
-import { savePoolStats, getLatestPoolStats, getHistoricalPoolStats } from '../../lib/api';
+import {
+  cacheDeletePrefix,
+  savePoolStats,
+  getLatestPoolStats,
+  getHistoricalPoolStats,
+} from '../../lib/api';
 import * as dbModule from '../../lib/db';
 import { PoolStats } from '../../lib/entities/PoolStats';
 
@@ -128,7 +133,9 @@ describe('Pool Stats API', () => {
   });
 
   describe('getHistoricalPoolStats', () => {
-    it('fetches historical stats with DESC ordering and 5760 limit', async () => {
+    beforeEach(() => cacheDeletePrefix(''));
+
+    it('fetches only the charted columns over the 5760-row window, newest first', async () => {
       const mockRepository = {
         find: jest.fn((_options) => Promise.resolve(mockPoolStats)),
       };
@@ -139,13 +146,50 @@ describe('Pool Stats API', () => {
 
       jest.spyOn(dbModule, 'getDb').mockResolvedValue(mockDb as any);
 
-      const result = await getHistoricalPoolStats();
+      await getHistoricalPoolStats();
 
       expect(mockRepository.find).toHaveBeenCalledWith({
+        select: [
+          'timestamp',
+          'users',
+          'workers',
+          'hashrate1m',
+          'hashrate5m',
+          'hashrate15m',
+          'hashrate1hr',
+          'hashrate6hr',
+          'hashrate1d',
+          'hashrate7d',
+          'SPS1m',
+          'SPS5m',
+          'SPS15m',
+          'SPS1h',
+        ],
         order: { timestamp: 'DESC' },
         take: 5760,
       });
-      expect(result).toEqual(mockPoolStats);
+    });
+
+    it('downsamples to every 10th row, always keeping the newest and the 24h-ago row', async () => {
+      const base = new Date('2025-01-31T12:00:00Z').getTime();
+      const rows = Array.from(
+        { length: 1500 },
+        (_, i) =>
+          ({ id: i, timestamp: new Date(base - i * 60_000) }) as PoolStats
+      );
+      const mockRepository = {
+        find: jest.fn(() => Promise.resolve(rows)),
+      };
+      jest
+        .spyOn(dbModule, 'getDb')
+        .mockResolvedValue({ getRepository: () => mockRepository } as any);
+
+      const result = await getHistoricalPoolStats();
+
+      expect(result).toHaveLength(150);
+      expect(result[0]).toBe(rows[0]);
+      expect(result[1]).toBe(rows[10]);
+      expect(result).toContain(rows[1440]); // 1-minute cadence: exactly 24h before the newest
     });
 
     it('returns array results from database', async () => {
