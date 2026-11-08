@@ -56,7 +56,7 @@ export function useDashboardData(initialData?: DashboardPayload) {
 
       return REFRESH_INTERVAL_MS;
     },
-    refetchIntervalInBackground: true,
+    refetchIntervalInBackground: false,
     refetchOnWindowFocus: false,
     refetchOnReconnect: true,
   });

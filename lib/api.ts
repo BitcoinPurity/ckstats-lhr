@@ -9,6 +9,26 @@ import { fetchAllPools, fetchUserFromPool } from '../scripts/fetchPools';
 import { bigIntStringFromFloatLike, maskAddress } from '../utils/helpers';
 
 const HISTORICAL_DATA_POINTS = 5760;
+// Every Nth row of the window is shipped. 1440 (24h of 1-minute samples) is a multiple, so the 24h
+// change anchor survives the downsample.
+const HISTORICAL_SAMPLE_STEP = 10;
+// Only the columns the dashboard chart and change badges read.
+const HISTORICAL_COLUMNS: (keyof PoolStats)[] = [
+  'timestamp',
+  'users',
+  'workers',
+  'hashrate1m',
+  'hashrate5m',
+  'hashrate15m',
+  'hashrate1hr',
+  'hashrate6hr',
+  'hashrate1d',
+  'hashrate7d',
+  'SPS1m',
+  'SPS5m',
+  'SPS15m',
+  'SPS1h',
+];
 
 type CacheEntry = { expires: number; value: any };
 const _cache = new Map<string, CacheEntry>();
@@ -174,10 +194,12 @@ export async function getHistoricalPoolStats(): Promise<PoolStats[]> {
   return getCached('historicalPoolStats', 60, async () => {
     const db = await getDb();
     const repository = db.getRepository(PoolStats);
-    return repository.find({
+    const rows = await repository.find({
+      select: HISTORICAL_COLUMNS,
       order: { timestamp: 'DESC' },
       take: HISTORICAL_DATA_POINTS,
     });
+    return rows.filter((_, i) => i % HISTORICAL_SAMPLE_STEP === 0);
   });
 }
 
